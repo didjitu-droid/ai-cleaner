@@ -34,7 +34,7 @@ Le plugin est installé dans `/Library/Audio/Plug-Ins/VST3` et `/Library/Audio/P
 ## Utilisation rapide
 
 1. Mets **AI Cleaner** sur la piste du stem.
-2. Choisis le type de stem en haut : **Vocals, Drums, Bass, Instruments, Full Mix**.
+2. Choisis le type de stem en haut : **Vocals, Drums, Percussion, Bass, Instruments** (synthé, guitare, claviers…) ou **Full Mix**.
 3. Glisse le **cœur** vers le haut ou le bas : il règle les 8 modules en même temps.
 4. Clique sur **Listen: removed** pour entendre ce que le plugin enlève. Si tu entends de la musique dedans, baisse le cœur.
 5. Les **coupes de fréquences** sont en **AUTO** par défaut. Attrape un point pour les régler toi-même.
@@ -49,12 +49,12 @@ Astuces : double-clic sur un bouton = valeur par défaut. Maj + glisser sur le c
 | Sibilance | Adoucit les S et les T |
 | Resonance | Calme les fréquences qui sonnent et sifflent |
 | Mud | Nettoie les bas-médiums flous (comme un EQ qui s'adapte tout seul) |
-| Bleed | Réduit la repisse des autres instruments |
+| Bleed | Réduit la repisse : sur Drums/Percussion il enlève les notes tenues qui ont bavé (basse, synthé), sur les stems mélodiques il enlève les coups de batterie qui ont bavé |
 | Deverb | Réduit les queues de reverb |
 | Stereo Fix | Stabilise la stéréo et met le grave en mono |
 | Punch | Redonne de l'attaque aux transitoires |
 
-Le plugin ajoute une petite latence (environ 43 ms à 48 kHz), compensée automatiquement par FL Studio et les autres logiciels.
+Le plugin ajoute une latence d'environ 85 ms (il « regarde » un peu en avance pour séparer notes et coups), compensée automatiquement par FL Studio et les autres logiciels.
 
 ---
 

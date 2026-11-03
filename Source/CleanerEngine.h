@@ -33,7 +33,8 @@ namespace aic
 
         void prepare (double sampleRate, int numChannels);
         void reset();
-        int  getLatencySamples() const noexcept { return fftSize; }
+        // fftSize for the STFT + a few frames of look-ahead for the Bleed separation.
+        int  getLatencySamples() const noexcept { return fftSize + lookFrames * hopSize; }
         void process (juce::AudioBuffer<float>& buffer, const EngineParams& p);
 
         // Thread-safe reads for the user interface.
@@ -57,8 +58,18 @@ namespace aic
         std::vector<std::vector<float>> inRing, outAccum, fftBuf;
         int writePos = 0, hopCounter = 0;
 
+        // Look-ahead: spectra are processed lookFrames hops late so the Bleed module can see
+        // a little of the future (needed to tell a held note from a short drum hit).
+        static constexpr int lookFrames = 4, pastFrames = 16, ringFrames = pastFrames + 1 + lookFrames;
+        std::vector<std::vector<std::vector<float>>> specRing;  // [slot][channel][2 * fftSize]
+        std::vector<std::vector<float>> powRing;                 // [slot][bin]
+        long long frameCount = 0;
+        std::vector<std::vector<float>> dryDelay;                // keeps dry aligned with the look-ahead
+        int dryPos = 0;
+        std::vector<float> hMed, pMed;                           // harmonic / percussive estimates
+
         // Spectral state (per bin)
-        std::vector<float> power, slowP, floorP /* bleed peak reference */, longP, dispP, prefix, gainDbSmooth, targetDb, tmpDb, prevPower, localMax;
+        std::vector<float> power, slowP, floorP /* bleed peak reference */, longP, dispP, prefix, gainDbSmooth, targetDb, tmpDb, prevPower, localMax, medScratch;
         std::vector<std::vector<float>> powerHistory; // for deverb
         int historyFrames = 6, historyPos = 0;
         float sibRatioSmooth = -30.0f, mudReductionSmooth = 0.0f;

@@ -45,8 +45,9 @@ AICleanerEditor::AICleanerEditor (AICleanerProcessor& p)
     bypassAtt   = std::make_unique<ButtonAttachment> (apvts, "bypass", bypassButton);
 
     // Stem selector
-    for (int s = 0; s < aic::numStems; ++s)
+    for (int i = 0; i < aic::numStems; ++i)
     {
+        const int s = aic::stemDisplayOrder (i);
         auto* b = stemButtons.add (new PillButton (aic::stemName (s)));
         b->fontSize = 14.0f;
         b->setTooltip (juce::String ("Load the starting settings for ") + aic::stemName (s) + " stems.");
@@ -99,12 +100,13 @@ AICleanerEditor::AICleanerEditor (AICleanerProcessor& p)
     deltaButton.setBounds (646, 10, 148, 36);
     bypassButton.setBounds (802, 10, 78, 36);
 
-    const int stemWidths[aic::numStems] = { 84, 76, 66, 112, 92 };
-    int x = 248;
-    for (int s = 0; s < aic::numStems; ++s)
+    // Same order as stemDisplayOrder: Vocals, Drums, Percussion, Bass, Instruments, Full Mix
+    const int stemWidths[aic::numStems] = { 84, 76, 112, 66, 112, 92 };
+    int x = 190;
+    for (int i = 0; i < aic::numStems; ++i)
     {
-        stemButtons[s]->setBounds (x, 64, stemWidths[s], 34);
-        x += stemWidths[s] + 6;
+        stemButtons[i]->setBounds (x, 64, stemWidths[i], 34);
+        x += stemWidths[i] + 6;
     }
 
     heart->setBounds (60, 152, 180, 156);
@@ -176,8 +178,8 @@ void AICleanerEditor::timerCallback()
     if (stem != lastStem)
     {
         lastStem = stem;
-        for (int s = 0; s < stemButtons.size(); ++s)
-            stemButtons[s]->setToggleState (s == stem, juce::dontSendNotification);
+        for (int i = 0; i < stemButtons.size(); ++i)
+            stemButtons[i]->setToggleState (aic::stemDisplayOrder (i) == stem, juce::dontSendNotification);
     }
 }
 
@@ -204,7 +206,7 @@ void AICleanerEditor::Content::paint (juce::Graphics& g)
 
     g.setColour (col::muted);
     g.setFont (outfit (11.0f, true, 0.2f));
-    g.drawText ("STEM", juce::Rectangle<float> (198.0f, 64.0f, 46.0f, 34.0f), juce::Justification::centredLeft, false);
+    g.drawText ("STEM", juce::Rectangle<float> (140.0f, 64.0f, 46.0f, 34.0f), juce::Justification::centredLeft, false);
 
     // Panels
     for (auto r : { heartCard, modulePanel })

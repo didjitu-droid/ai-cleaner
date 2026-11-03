@@ -25,6 +25,7 @@ namespace aic
         bass,
         instruments,
         fullMix,
+        percussion,   // added in 1.2 (kept last so saved projects keep their stem)
         numStems
     };
 
@@ -42,9 +43,16 @@ namespace aic
         return names[m];
     }
 
+    // Order of the stem buttons on screen.
+    inline int stemDisplayOrder (int i)
+    {
+        static const int order[numStems] = { vocals, drums, percussion, bass, instruments, fullMix };
+        return order[i];
+    }
+
     inline const char* stemName (int s)
     {
-        static const char* names[numStems] = { "Vocals", "Drums", "Bass", "Instruments", "Full Mix" };
+        static const char* names[numStems] = { "Vocals", "Drums", "Bass", "Instruments", "Full Mix", "Percussion" };
         return names[s];
     }
 
@@ -61,11 +69,12 @@ namespace aic
     {
         static const StemPreset presets[numStems] = {
             //  Metal Sib  Res  Mud Bleed Dev  Ster Punch   low     high     autoLow      autoHigh
-            { { 80,  80,  70,  40,  50,  50,  70,   0 },   90.0f, 16000.0f,  60.0f, 160.0f, 12000.0f, 17500.0f }, // Vocals
-            { { 90,  20,  50,  30,  40,  20,  40,  60 },   30.0f, 17000.0f,  20.0f,  60.0f, 14000.0f, 19500.0f }, // Drums
-            { { 40,   0,  50,  40,  50,   0, 100,   0 },   30.0f, 12000.0f,  20.0f,  45.0f,  6000.0f, 16000.0f }, // Bass
-            { { 80,  40,  60,  40,  50,  30,  60,  20 },   50.0f, 16000.0f,  25.0f, 120.0f, 12000.0f, 18000.0f }, // Instruments
-            { { 70,  50,  50,  30,   0,  20,  50,  20 },   25.0f, 17000.0f,  20.0f,  40.0f, 15000.0f, 19500.0f }  // Full Mix
+            { { 80,  80,  70,  40,  40,  50,  70,   0 },   90.0f, 16000.0f,  60.0f, 160.0f, 12000.0f, 17500.0f }, // Vocals
+            { { 90,  20,  50,  10,  40,  15,  40,  50 },   30.0f, 17000.0f,  20.0f,  60.0f, 14000.0f, 19500.0f }, // Drums
+            { { 40,   0,  50,  40,  30,   0, 100,   0 },   30.0f, 12000.0f,  20.0f,  45.0f,  6000.0f, 16000.0f }, // Bass
+            { { 80,  40,  60,  30,  30,  15,  60,  20 },   50.0f, 16000.0f,  25.0f, 120.0f, 12000.0f, 18000.0f }, // Instruments
+            { { 70,  50,  50,  30,   0,  20,  50,  20 },   25.0f, 17000.0f,  20.0f,  40.0f, 15000.0f, 19500.0f }, // Full Mix
+            { { 80,  20,  40,   0,  25,  15,  30,  40 },   40.0f, 18000.0f,  30.0f, 100.0f, 14000.0f, 19500.0f }  // Percussion
         };
         return presets[s];
     }
