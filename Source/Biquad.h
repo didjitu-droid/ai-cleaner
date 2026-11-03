@@ -4,6 +4,8 @@
 
 namespace aic
 {
+    constexpr double kPi = 3.14159265358979323846;
+
     // Minimal transposed direct form II biquad (RBJ cookbook coefficients).
     struct Biquad
     {
@@ -23,7 +25,7 @@ namespace aic
 
         void setLowPass (double sampleRate, double freq, double q) noexcept
         {
-            const double w = 2.0 * M_PI * clampFreq (freq, sampleRate) / sampleRate;
+            const double w = 2.0 * kPi * clampFreq (freq, sampleRate) / sampleRate;
             const double cw = std::cos (w), alpha = std::sin (w) / (2.0 * q);
             const double a0 = 1.0 + alpha;
             b0 = (1.0 - cw) * 0.5 / a0;
@@ -35,7 +37,7 @@ namespace aic
 
         void setHighPass (double sampleRate, double freq, double q) noexcept
         {
-            const double w = 2.0 * M_PI * clampFreq (freq, sampleRate) / sampleRate;
+            const double w = 2.0 * kPi * clampFreq (freq, sampleRate) / sampleRate;
             const double cw = std::cos (w), alpha = std::sin (w) / (2.0 * q);
             const double a0 = 1.0 + alpha;
             b0 = (1.0 + cw) * 0.5 / a0;

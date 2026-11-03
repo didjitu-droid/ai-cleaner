@@ -36,7 +36,7 @@ void CleanerEngine::prepare (double newSampleRate, int newNumChannels)
     // sqrt-Hann analysis and synthesis windows (periodic) -> perfect reconstruction at 75 % overlap.
     window.assign ((size_t) fftSize, 0.0f);
     for (int i = 0; i < fftSize; ++i)
-        window[(size_t) i] = (float) std::sqrt (0.5 - 0.5 * std::cos (2.0 * M_PI * i / fftSize));
+        window[(size_t) i] = (float) std::sqrt (0.5 - 0.5 * std::cos (2.0 * kPi * i / fftSize));
 
     inRing.assign ((size_t) numChannels, std::vector<float> ((size_t) fftSize, 0.0f));
     outAccum.assign ((size_t) numChannels, std::vector<float> ((size_t) fftSize, 0.0f));
@@ -340,7 +340,7 @@ void CleanerEngine::processFrame (const EngineParams& p)
     }
 
     // Normalise so that a full-scale sine reads about 0 dB.
-    const float norm = (float) (M_PI * M_PI) / ((float) fftSize * (float) fftSize);
+    const float norm = (float) (kPi * kPi) / ((float) fftSize * (float) fftSize);
 
     const float slowCoef = onePole (0.08, frameSec);
     const float longCoef = onePole (2.0, frameSec);
