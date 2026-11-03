@@ -42,7 +42,7 @@ void CleanerEngine::prepare (double newSampleRate, int newNumChannels)
     outAccum.assign ((size_t) numChannels, std::vector<float> ((size_t) fftSize, 0.0f));
     fftBuf.assign ((size_t) numChannels, std::vector<float> ((size_t) fftSize * 2, 0.0f));
 
-    for (auto* v : { &power, &slowP, &floorP, &longP, &dispP, &gainDbSmooth, &targetDb, &tmpDb })
+    for (auto* v : { &power, &slowP, &floorP, &longP, &dispP, &gainDbSmooth, &targetDb, &tmpDb, &prevPower, &localMax })
         v->assign ((size_t) numBins, 0.0f);
     prefix.assign ((size_t) numBins + 1, 0.0f);
 
@@ -61,7 +61,7 @@ void CleanerEngine::reset()
     for (auto& v : inRing)   std::fill (v.begin(), v.end(), 0.0f);
     for (auto& v : outAccum) std::fill (v.begin(), v.end(), 0.0f);
     for (auto& v : powerHistory) std::fill (v.begin(), v.end(), 0.0f);
-    for (auto* v : { &power, &slowP, &longP, &dispP, &gainDbSmooth, &targetDb, &tmpDb })
+    for (auto* v : { &power, &slowP, &longP, &dispP, &gainDbSmooth, &targetDb, &tmpDb, &prevPower })
         std::fill (v->begin(), v->end(), 0.0f);
     std::fill (floorP.begin(), floorP.end(), 0.0f);
 
@@ -298,7 +298,25 @@ void CleanerEngine::updateAutoCuts (const EngineParams& p)
     for (int k = numBins - 1; k > kMin; --k)
     {
         acc += longP[(size_t) k];
-        if (acc > total * 5.0e-4) { highCand = binToHz (k) * 1.1f; break; }
+        if (acc > total * 2.0e-5) { highCand = binToHz (k) * 1.1f; break; }
+    }
+
+    // Suno often leaves a band of digital "speckle" around 16-20 kHz that sits ABOVE a quieter
+    // dip around 13-15.5 kHz. Natural recordings fall off instead. If we see that shelf, cut below it.
+    {
+        auto meanLong = [this] (float f0, float f1)
+        {
+            const int a = std::max (1, (int) (f0 / binToHz (1))), b = std::min (numBins - 1, (int) (f1 / binToHz (1)));
+            double sum = 0.0;
+            for (int k = a; k <= b; ++k) sum += longP[(size_t) k];
+            return b >= a ? sum / (b - a + 1) : 0.0;
+        };
+        if (sampleRate > 40000.0)
+        {
+            const double dip = meanLong (13000.0f, 15500.0f), shelf = meanLong (16000.0f, 19500.0f);
+            if (shelf > dip * 1.2 && shelf > 1.0e-14)
+                highCand = std::min (highCand, 15500.0f);
+        }
     }
 
     lowCand  = clampf (lowCand,  preset.autoLowMin,  preset.autoLowMax);
@@ -378,6 +396,15 @@ void CleanerEngine::processFrame (const EngineParams& p)
         return (prefix[(size_t) b + 1] - prefix[(size_t) a]) / (float) (b - a + 1);
     };
 
+    // Local maximum over +-3 bins (nearest harmonic peak), for the bleed "gap" rule.
+    for (int k = 0; k < numBins; ++k)
+    {
+        float mx = 0.0f;
+        for (int j = std::max (0, k - 3); j <= std::min (numBins - 1, k + 3); ++j)
+            mx = std::max (mx, power[(size_t) j]);
+        localMax[(size_t) k] = mx;
+    }
+
     // Bleed reference: recent peak of each band (1/6 octave), falling slowly.
     // floorP holds this peak reference.
     for (int k = 0; k < numBins; ++k)
@@ -426,7 +453,7 @@ void CleanerEngine::processFrame (const EngineParams& p)
     // Deverb: late reverb estimate = power ~60 ms ago, decayed with an assumed RT60 of 0.5 s.
     auto& oldest = powerHistory[(size_t) historyPos];
     const float lateDecay = std::pow (10.0f, -6.0f * (float) (historyFrames * frameSec) / 0.5f);
-    const float revFloor = std::pow (10.0f, -aRev * 15.0f / 10.0f);
+    const float revFloor = std::pow (10.0f, -aRev * 8.0f / 10.0f);  // at most -8 dB
 
     // 4. Per-bin reduction in dB.
     for (int k = 0; k < numBins; ++k)
@@ -468,15 +495,19 @@ void CleanerEngine::processFrame (const EngineParams& p)
             // Bleed: quiet content that never rises far above the bin's own floor is gated down.
             if (aBleed > 0.0f && f > 40.0f)
             {
+                // Only content far below the band's recent peak (where bleed lives) is lowered,
+                // and never fully gated, so note tails and room sound survive.
                 const float below = toDb (floorP[(size_t) k]) - toDb (pw);   // dB under the band's recent peak
-                red += aBleed * 18.0f * clamp01 ((below - 18.0f) / 12.0f);
+                red += aBleed * 12.0f * clamp01 ((below - 30.0f) / 15.0f);
+
             }
 
             // Deverb: subtract the predicted late-reverb tail.
-            if (aRev > 0.0f && f > 80.0f)
+            // Only acts while the bin is decaying (a tail), never on a note that is starting or held.
+            if (aRev > 0.0f && f > 250.0f && pw < prevPower[(size_t) k] * 0.9f)
             {
                 const float late = oldest[(size_t) k] * lateDecay;
-                const float g = std::max (1.0f - aRev * late / pw, revFloor);
+                const float g = std::max (1.0f - 0.45f * aRev * late / pw, revFloor);
                 red += -toDb (g);
             }
         }
@@ -486,17 +517,16 @@ void CleanerEngine::processFrame (const EngineParams& p)
 
     // Remember this frame for the deverb estimate.
     std::copy (power.begin(), power.end(), oldest.begin());
+    std::copy (power.begin(), power.end(), prevPower.begin());
     historyPos = (historyPos + 1) % historyFrames;
 
     // 5. Smooth gains across frequency then time (fast attack, gentle release) to avoid "musical noise".
     for (int k = 0; k < numBins; ++k)
     {
-        const float a = targetDb[(size_t) std::max (0, k - 1)];
-        const float b = targetDb[(size_t) k];
-        const float c = targetDb[(size_t) std::min (numBins - 1, k + 1)];
-        tmpDb[(size_t) k] = 0.25f * a + 0.5f * b + 0.25f * c;
+        auto at = [this] (int i) { return targetDb[(size_t) juce::jlimit (0, numBins - 1, i)]; };
+        tmpDb[(size_t) k] = 0.1f * at (k - 2) + 0.2f * at (k - 1) + 0.4f * at (k) + 0.2f * at (k + 1) + 0.1f * at (k + 2);
     }
-    const float attack = 0.65f, release = onePole (0.045, frameSec);
+    const float attack = 0.5f, release = onePole (0.09, frameSec);
     for (int k = 0; k < numBins; ++k)
     {
         auto& s = gainDbSmooth[(size_t) k];

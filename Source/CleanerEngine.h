@@ -58,7 +58,7 @@ namespace aic
         int writePos = 0, hopCounter = 0;
 
         // Spectral state (per bin)
-        std::vector<float> power, slowP, floorP /* bleed peak reference */, longP, dispP, prefix, gainDbSmooth, targetDb, tmpDb;
+        std::vector<float> power, slowP, floorP /* bleed peak reference */, longP, dispP, prefix, gainDbSmooth, targetDb, tmpDb, prevPower, localMax;
         std::vector<std::vector<float>> powerHistory; // for deverb
         int historyFrames = 6, historyPos = 0;
         float sibRatioSmooth = -30.0f, mudReductionSmooth = 0.0f;
