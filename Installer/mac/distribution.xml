@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<installer-gui-script minSpecVersion="2">
+    <title>AI Cleaner</title>
+    <organization>com.maaura</organization>
+    <welcome file="welcome.html" mime-type="text/html"/>
+    <conclusion file="conclusion.html" mime-type="text/html"/>
+    <options customize="allow" require-scripts="false" hostArchitectures="arm64,x86_64"/>
+    <domains enable_localSystem="true"/>
+    <choices-outline>
+        <line choice="vst3"/>
+        <line choice="au"/>
+    </choices-outline>
+    <choice id="vst3" title="AI Cleaner VST3" description="For FL Studio, Ableton Live, Cubase, Bitwig, Studio One, Reaper…">
+        <pkg-ref id="com.maaura.aicleaner.vst3"/>
+    </choice>
+    <choice id="au" title="AI Cleaner Audio Unit (AU)" description="For Logic Pro, GarageBand and other AU hosts.">
+        <pkg-ref id="com.maaura.aicleaner.au"/>
+    </choice>
+    <pkg-ref id="com.maaura.aicleaner.vst3">AICleaner-VST3.pkg</pkg-ref>
+    <pkg-ref id="com.maaura.aicleaner.au">AICleaner-AU.pkg</pkg-ref>
+</installer-gui-script>

@@ -1,0 +1,129 @@
+name: Build AI Cleaner
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  VERSION: "1.0.0"
+
+jobs:
+  mac:
+    name: macOS (VST3 + AU, Apple Silicon + Intel)
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure
+        run: cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64"
+
+      - name: Build
+        run: cmake --build build --config Release -j 4
+
+      - name: Sign (ad-hoc) and check
+        run: |
+          set -e
+          ART="build/AICleaner_artefacts/Release"
+          ls -R "$ART" | head -50
+          codesign --force --deep --sign - "$ART/VST3/AI Cleaner.vst3"
+          codesign --force --deep --sign - "$ART/AU/AI Cleaner.component"
+          lipo -info "$ART/VST3/AI Cleaner.vst3/Contents/MacOS/AI Cleaner"
+
+      - name: Validate the Audio Unit
+        continue-on-error: true
+        run: |
+          mkdir -p ~/Library/Audio/Plug-Ins/Components
+          cp -R "build/AICleaner_artefacts/Release/AU/AI Cleaner.component" ~/Library/Audio/Plug-Ins/Components/
+          killall -9 AudioComponentRegistrar || true
+          sleep 3
+          auval -v aufx AiCl Maau
+
+      - name: Build the installer (.pkg)
+        run: |
+          set -e
+          ART="build/AICleaner_artefacts/Release"
+          mkdir -p pkg/vst3 pkg/au pkg/scripts dist
+          cp -R "$ART/VST3/AI Cleaner.vst3" pkg/vst3/
+          cp -R "$ART/AU/AI Cleaner.component" pkg/au/
+
+          # Never let the installer "relocate" the bundles somewhere else.
+          for kind in vst3 au; do
+            pkgbuild --analyze --root pkg/$kind pkg/$kind.plist
+            plutil -replace 0.BundleIsRelocatable -bool NO pkg/$kind.plist
+          done
+
+          cp Installer/mac/postinstall pkg/scripts/postinstall
+          chmod +x pkg/scripts/postinstall
+
+          pkgbuild --root pkg/vst3 --component-plist pkg/vst3.plist \
+                   --identifier com.maaura.aicleaner.vst3 --version "$VERSION" \
+                   --install-location "/Library/Audio/Plug-Ins/VST3" pkg/AICleaner-VST3.pkg
+          pkgbuild --root pkg/au --component-plist pkg/au.plist --scripts pkg/scripts \
+                   --identifier com.maaura.aicleaner.au --version "$VERSION" \
+                   --install-location "/Library/Audio/Plug-Ins/Components" pkg/AICleaner-AU.pkg
+
+          productbuild --distribution Installer/mac/distribution.xml \
+                       --resources Installer/mac/resources \
+                       --package-path pkg "dist/AI-Cleaner-Mac-Installer.pkg"
+
+          cd "$ART" && zip -qry "$GITHUB_WORKSPACE/dist/AI-Cleaner-Mac-Plugins.zip" "VST3/AI Cleaner.vst3" "AU/AI Cleaner.component"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mac
+          path: dist/*
+
+  windows:
+    name: Windows (VST3)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure
+        run: cmake -B build -G "Visual Studio 17 2022" -A x64
+
+      - name: Build
+        run: cmake --build build --config Release
+
+      - name: Build the installer (Setup.exe)
+        shell: pwsh
+        run: |
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) {
+            choco install innosetup -y --no-progress
+          }
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          & $iscc "/DMyAppVersion=$env:VERSION" "/O$PWD\dist" "Installer\windows\AICleaner.iss"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Compress-Archive -Path "build\AICleaner_artefacts\Release\VST3\AI Cleaner.vst3" -DestinationPath "dist\AI-Cleaner-Windows-VST3.zip"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: dist/*
+
+  release:
+    name: Publish downloads
+    needs: [ mac, windows ]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ env.VERSION }}-build${{ github.run_number }}
+          name: AI Cleaner ${{ env.VERSION }} (build ${{ github.run_number }})
+          make_latest: true
+          body: |
+            **Mac** : télécharge `AI-Cleaner-Mac-Installer.pkg` et double-clique dessus.
+            **Windows** : télécharge `AI-Cleaner-Windows-Setup.exe` et double-clique dessus.
+            Le guide complet est dans le README.
+          files: dist/*
